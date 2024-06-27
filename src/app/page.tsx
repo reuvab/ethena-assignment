@@ -1,112 +1,126 @@
-import Image from "next/image";
+'use client';
+
+import { TokenDialog } from '@/components/TokenDialog';
+import { TokenLogo } from '@/components/TokenLogo';
+import { TokenList, TokenWithBalance } from '@/components/types';
+import { Button } from '@headlessui/react';
+import { ChevronDownIcon } from '@heroicons/react/24/solid';
+import { useMemo, useState } from 'react';
+import { erc20Abi, formatEther, formatUnits } from 'viem';
+import { useAccount, useBalance, useReadContracts } from 'wagmi';
+
+const ordinaryFormat = (number: number | bigint) => {
+  return Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+    notation: 'standard',
+  }).format(number);
+};
 
 export default function Home() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selected, setSelected] = useState<TokenWithBalance | null>(null);
+
+  const { address } = useAccount();
+
+  const contracts = TokenList.reduce((acc, token) => {
+    return [
+      ...acc,
+      {
+        address: token.contract,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      },
+      {
+        address: token.contract,
+        abi: erc20Abi,
+        functionName: 'decimals',
+      },
+    ];
+  }, [] as any[]);
+
+  const { data } = useReadContracts({
+    allowFailure: true,
+    contracts: contracts,
+  });
+
+  const { data: ethBalance } = useBalance({ address });
+
+  const tokenWithBalances = useMemo(() => {
+    const res = [] as TokenWithBalance[];
+    if (!address) return res;
+    if (!data) return res;
+
+    for (let i = 0; i < data.length; i += 2) {
+      const balance = data[i]?.result as bigint;
+      const decimals = Number(data[i + 1]?.result as bigint);
+
+      const token = TokenList[i / 2];
+      if (!decimals) {
+        res.push({
+          ...token,
+          balance: '0',
+        });
+      } else {
+        res.push({
+          ...token,
+          balance: ordinaryFormat(Number(formatUnits(balance, decimals))),
+        });
+      }
+    }
+    // Add ETH
+    res.unshift({
+      name: 'ETH',
+      symbol: 'ETH',
+      contract: '0x',
+      balance: ordinaryFormat(+formatEther(ethBalance?.value ?? 0n)),
+    });
+
+    return res;
+  }, [address, data, ethBalance?.value]);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <main className='h-screen text-white w-4/5 flex items-center flex-col gap-5'>
+      <div className='bg-[rgba(20,24,33,0.60)] w-4/5 p-6 flex items-center justify-between rounded-xl h-20 border-[#2A2C30] border'>
+        <div className='flex flex-col'>
+          <p className='font-semibold'>Select Collateral Token</p>
+          <p className='text-gray-400 text-xs leading-3'>Choose a token to mint USDe</p>
         </div>
+        <Button
+          className='bg-metal text-white w-32 flex flex-row items-center justify-between px-2 h-10 rounded-xl border border-[#2A2C30]'
+          onClick={() => {
+            setIsOpen(true);
+          }}
+        >
+          <div className='flex items-center justify-start gap-2'>
+            {selected && (
+              <>
+                <TokenLogo symbol={selected.symbol} />
+                <p>{selected.name}</p>
+              </>
+            )}
+            {!selected && <p className='text-sm'>Select Token</p>}
+          </div>
+          <ChevronDownIcon className='w-5 h-5' />
+        </Button>
       </div>
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
+      <button
+        className='transform transition-transform duration-200 hover:scale-105 bg-gray-900 text-white font-bold py-2 px-4 rounded-md border border-gray-500 hover:bg-gray-800'
+        disabled={selected === null}
+      >
+        {`Mint ${selected?.name ?? ''}`}
+      </button>
+
+      <div>
+        <TokenDialog
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          onValidate={setSelected}
+          selected={selected}
+          tokenList={tokenWithBalances}
         />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
       </div>
     </main>
   );
