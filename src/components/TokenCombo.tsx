@@ -39,15 +39,15 @@ export const TokenCombo = ({
           <ListboxOptions
             anchor='bottom'
             transition
-            className='bg-metal w-32 rounded-xl mt-1 max-h-48 z-50 scrollbar-dropdown origin-top transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0'
+            className='bg-metal w-32 rounded-xl mt-1 max-h-48 z-50 scrollbar-dropdown origin-top transition duration-200 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 h-60'
           >
             {tokenList.map((token) => (
               <ListboxOption key={token.symbol} value={token} as={Fragment}>
-                {({ focus, selected }) => (
+                {({ focus }) => (
                   <div className={clsx('gap-2 bg-metal text-white py-2 px-1 h-10')}>
                     <div
                       className={clsx('rounded-lg px-2 first:pt-0 last:pb-0 py-2', {
-                        'bg-blue-500': focus || selected,
+                        'bg-blue-500': focus,
                       })}
                     >
                       <button className='flex items-center flex-row justify-start gap-2 w-full'>
